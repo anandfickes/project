@@ -591,7 +591,7 @@ DR = get_distanceR
 DL = get_distanceL
 print ("start can MODE")
 #moveforward
-for DR, DL in range(150, 350):
+for DR, DL in range(150, 1000):
     if ((DR-DL) < 20) or ((DL-DR) < 20):
         print("Move forward DistanceR: %.1f cm DistanceL: %.1f cm" % (DR, DL))
         send_ned_velocity(0.5,0,0,5)
@@ -599,6 +599,8 @@ for DR, DL in range(150, 350):
     elif (DR or DL) == 150:
         print("Range for scan")
         break
+    else:
+        print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
 time.sleep(5)
 #scan 
 for DR, DL in range(140, 160):
@@ -617,6 +619,8 @@ for DR, DL in range(140, 160):
         send_ned_velocity(0,0,-0.2,10)
         send_ned_velocity(0,0.5,0,300)
         break
+    else:
+        print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
         
 #aviod
 while (DR or DL) < 140:
