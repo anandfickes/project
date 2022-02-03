@@ -13,11 +13,11 @@
 
 # Set the path for IDLE
 import sys
-sys.path.append("/usr/local/lib/")
+sys.path.append("/usr/local/lib/") 
 
 # Set MAVLink protocol to 2.
 import os
-os.environ["MAVLINK20"] = "1"
+os.environ["MAVLINK20"] = "1" 
 
 # Import the libraries
 import pyrealsense2.pyrealsense2 as rs
@@ -55,7 +55,7 @@ connection_timeout_sec_default = 5
 #   1: Downfacing, USB port to the right 
 #   2: Forward, 45 degree tilted down
 # Important note for downfacing camera: you need to tilt the vehicle's nose up a little - not flat - before you run the script, otherwise the initial yaw will be randomized, read here for more details: https://github.com/IntelRealSense/librealsense/issues/4080. Tilt the vehicle to any other sides and the yaw might not be as stable.
-camera_orientation_default = 0
+camera_orientation_default = 0 #หันด้านหน้า
 
 # https://mavlink.io/en/messages/common.html#VISION_POSITION_ESTIMATE
 enable_msg_vision_position_estimate = True
@@ -77,7 +77,7 @@ update_tracking_confidence_to_gcs_hz_default = 1.0
 enable_user_keyboard_input = False
 
 # Default global position for EKF home/ origin
-enable_auto_set_ekf_home = False
+enable_auto_set_ekf_home = False #ตั้งใน mission
 home_lat = 151269321    # Somewhere random
 home_lon = 16624301     # Somewhere random
 home_alt = 163000       # Somewhere random
@@ -86,7 +86,7 @@ home_alt = 163000       # Somewhere random
 # In NED frame, offset from the IMU or the center of gravity to the camera's origin point
 body_offset_enabled = 0
 body_offset_x = 0  # In meters (m)
-body_offset_y = 0  # In meters (m)
+body_offset_y = 0.21  # In meters (m)
 body_offset_z = 0  # In meters (m)
 
 # Global scale factor, position x y z will be scaled up/down by this factor
