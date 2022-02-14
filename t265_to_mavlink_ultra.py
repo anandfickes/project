@@ -28,7 +28,6 @@ import time
 import argparse
 import threading
 import signal
-import RPi.GPIO as GPIO
 import csv
 
 from time import sleep
@@ -38,9 +37,9 @@ from pymavlink import mavutil
 
 
 # Replacement of the standard print() function to flush the output
-def progress(string):
+def progress(string): 
     print(string, file=sys.stdout)
-    sys.stdout.flush()
+    sys.stdout.flush() # !แสดงผลในterminal
 
 
 #######################################
@@ -57,10 +56,10 @@ connection_timeout_sec_default = 5
 #   1: Downfacing, USB port to the right 
 #   2: Forward, 45 degree tilted down
 # Important note for downfacing camera: you need to tilt the vehicle's nose up a little - not flat - before you run the script, otherwise the initial yaw will be randomized, read here for more details: https://github.com/IntelRealSense/librealsense/issues/4080. Tilt the vehicle to any other sides and the yaw might not be as stable.
-camera_orientation_default = 0
+camera_orientation_default = 0 # !กล้องด้านหน้าสายอยู่ขวา
 
 # https://mavlink.io/en/messages/common.html#VISION_POSITION_ESTIMATE
-enable_msg_vision_position_estimate = True
+enable_msg_vision_position_estimate = True # !เปิด visiom position
 vision_position_estimate_msg_hz_default = 30.0
 
 # https://mavlink.io/en/messages/ardupilotmega.html#VISION_POSITION_DELTA
@@ -68,25 +67,25 @@ enable_msg_vision_position_delta = False
 vision_position_delta_msg_hz_default = 30.0
 
 # https://mavlink.io/en/messages/common.html#VISION_SPEED_ESTIMATE
-enable_msg_vision_speed_estimate = True
+enable_msg_vision_speed_estimate = True  # !เปิด vision speed
 vision_speed_estimate_msg_hz_default = 30.0
 
 # https://mavlink.io/en/messages/common.html#STATUSTEXT
-enable_update_tracking_confidence_to_gcs = True
+enable_update_tracking_confidence_to_gcs = True # !อัพเดทสถานะกล้อง
 update_tracking_confidence_to_gcs_hz_default = 1.0
 
 # Monitor user's online input via keyboard, can only be used when runs from terminal
 enable_user_keyboard_input = False
 
 # Default global position for EKF home/ origin
-enable_auto_set_ekf_home = False
+enable_auto_set_ekf_home = False # !ตั้งhomeในmission
 home_lat = 151269321    # Somewhere random
 home_lon = 16624301     # Somewhere random
 home_alt = 163000       # Somewhere random
 
 # TODO: Taken care of by ArduPilot, so can be removed (once the handling on AP side is confirmed stable)
 # In NED frame, offset from the IMU or the center of gravity to the camera's origin point
-body_offset_enabled = 1
+body_offset_enabled = 1 # !กล้องห่างจากpixhawk
 body_offset_x = 0.2  # In meters (m)
 body_offset_y = 0  # In meters (m)
 body_offset_z = 0.2  # In meters (m)
@@ -95,10 +94,10 @@ body_offset_z = 0.2  # In meters (m)
 scale_factor = 1.0
 
 # Enable using yaw from compass to align north (zero degree is facing north)
-compass_enabled = 0
+compass_enabled = 0 # !ใช้compass จากกล้อง
 
 # pose data confidence: 0x0 - Failed / 0x1 - Low / 0x2 - Medium / 0x3 - High 
-pose_data_confidence_level = ('FAILED', 'Low', 'Medium', 'High')
+pose_data_confidence_level = ('FAILED', 'Low', 'Medium', 'High') # !สถานะกล้อง
 
 # lock for thread synchronization
 lock = threading.Lock()
@@ -108,52 +107,32 @@ mavlink_thread_should_exit = False
 # terminate signal is possible.
 exit_code = 1
 
-######ultra set#########################
-#ultrasonic connect
-GPIO.setwarnings(False)
-GPIO.cleanup()
-GPIO.setmode(GPIO.BCM)
-
-TRIGR = 23
-ECHOR = 24
-TRIGL = 20
-ECHOL = 16
-
-GPIO.setup(TRIGR, GPIO.OUT)
-GPIO.setup(ECHOR, GPIO.IN)
-GPIO.setup(TRIGL, GPIO.OUT)
-GPIO.setup(ECHOL, GPIO.IN)
-
-GPIO.output(TRIGR, True)
-GPIO.output(TRIGR, False)
-GPIO.output(TRIGL, True)
-GPIO.output(TRIGL, False)
 
 #######################################
 # Global variables
 #######################################
 
-# FCU connection variables
+# !FCU connection variables
 
-# Camera-related variables
-pipe = None
+# !Camera-related variables
+pipe = None #เริ่มต้นตอนรัน =0 
 pose_sensor = None
-linear_accel_cov = 0.01
-angular_vel_cov  = 0.01
+linear_accel_cov = 0.01 # ! ตัวแปรความเร่งเชิงเส้น
+angular_vel_cov  = 0.01 #! ตัวแปรความเร็วเชิงมุม
 
 # Data variables
-data = None
-prev_data = None
-H_aeroRef_aeroBody = None
-V_aeroRef_aeroBody = None
+data = None #! data ปัจจุบัน
+prev_data = None  #! data  ก่อนหน้า
+H_aeroRef_aeroBody = None #!อ้างอิง horizontal จากเครื่อง
+V_aeroRef_aeroBody = None #! อ้างอิง vetical จากเครื่อง
 heading_north_yaw = None
-current_confidence_level = None
+current_confidence_level = None #! ระดับสถานะกล้อง
 current_time_us = 0
 
 # Increment everytime pose_jumping or relocalization happens
 # See here: https://github.com/IntelRealSense/librealsense/blob/master/doc/t265.md#are-there-any-t265-specific-options
 # For AP, a non-zero "reset_counter" would mean that we could be sure that the user's setup was using mavlink2
-reset_counter = 1
+reset_counter = 1 #! reset ตอน jump
 
 #######################################
 # Parsing user' inputs
@@ -263,46 +242,7 @@ else:
     np.set_printoptions(precision=4, suppress=True) # Format output on terminal 
     progress("INFO: Debug messages enabled.")
     
-###################ultrasonic######################
-def get_distanceR():
-    GPIO.output(TRIGR, True)
-    time.sleep(0.0001)
-    GPIO.output(TRIGR, False)
 
-    while GPIO.input(ECHOR) == False:
-        start = time.time()
-
-    while GPIO.input(ECHOR) == True:
-        end = time.time()
-
-    sig_time = end - start
-
-    distanceR = sig_time * 17150
-    distanceR = round(distanceR, 2)
-
-    print('DistanceR: %.1f cm' % distanceR)
-    time.sleep(0.0001)
-    return distanceR
-
-def get_distanceL():
-    GPIO.output(TRIGL, True)
-    time.sleep(0.0001)
-    GPIO.output(TRIGL, False)
-
-    while GPIO.input(ECHOL) == False:
-        start = time.time()
-
-    while GPIO.input(ECHOL) == True:
-        end = time.time()
-
-    sig_time = end - start
-
-    distanceL = sig_time * 17150
-    distanceL = round(distanceL, 2)
-
-    print('DistanceL: %.1f cm' % distanceL)
-    time.sleep(0.0001)
-    return distanceL
 
 #######################################
 # Functions - MAVLink
@@ -326,7 +266,7 @@ def mavlink_loop(conn, callbacks):
         callbacks[m.get_type()](m)
 
 # https://mavlink.io/en/messages/common.html#VISION_POSITION_ESTIMATE
-def send_vision_position_estimate_message():
+def send_vision_position_estimate_message(): #!ส่ง vision posiiton 
     global current_time_us, H_aeroRef_aeroBody, reset_counter
     with lock:
         if H_aeroRef_aeroBody is not None:
@@ -358,7 +298,7 @@ def send_vision_position_estimate_message():
             )
 
 # https://mavlink.io/en/messages/ardupilotmega.html#VISION_POSITION_DELTA
-def send_vision_position_delta_message():
+def send_vision_position_delta_message(): #!ส่ง vision position
     global current_time_us, current_confidence_level, H_aeroRef_aeroBody
     with lock:
         if H_aeroRef_aeroBody is not None:
@@ -384,7 +324,7 @@ def send_vision_position_delta_message():
             send_vision_position_delta_message.prev_time_us = current_time_us
 
 # https://mavlink.io/en/messages/common.html#VISION_SPEED_ESTIMATE
-def send_vision_speed_estimate_message():
+def send_vision_speed_estimate_message(): #! ส่ง vision speed
     global current_time_us, V_aeroRef_aeroBody, reset_counter
     with lock:
         if V_aeroRef_aeroBody is not None:
@@ -476,7 +416,7 @@ def att_msg_callback(value):
 # Functions - T265
 #######################################
 
-def increment_reset_counter():
+def increment_reset_counter(): #! รีเซ็ตเมื่อ jump 
     global reset_counter
     if reset_counter >= 255:
         reset_counter = 1
@@ -494,13 +434,13 @@ def realsense_connect():
     global pipe, pose_sensor
     
     # Declare RealSense pipeline, encapsulating the actual device and sensors
-    pipe = rs.pipeline()
+    pipe = rs.pipeline() 
 
     # Build config object before requesting data
     cfg = rs.config()
 
     # Enable the stream we are interested in
-    cfg.enable_stream(rs.stream.pose) # Positional data
+    cfg.enable_stream(rs.stream.pose) #! Positional data
 
     # Configure callback for relocalization event
     device = cfg.resolve(pipe).get_device()
@@ -584,60 +524,18 @@ def send_ned_velocity(Vx, Vy, Vz, duration):
     for i in range(0,duration):
         vehicle.send_mavlink(msg)
         
-arm_and_takeoff(2)
-
-        #condition
-DR = get_distanceR 
-DL = get_distanceL
-print ("start can MODE")
-#moveforward
-for DR, DL in range(150, 1000):
-    if ((DR-DL) < 20) or ((DL-DR) < 20):
-        print("Move forward DistanceR: %.1f cm DistanceL: %.1f cm" % (DR, DL))
-        send_ned_velocity(0.5,0,0,5)
-        time.sleep(5)
-    elif (DR or DL) == 150:
-        print("Range for scan")
-        break
-    else:
-        print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
-time.sleep(5)
-#scan 
-for DR, DL in range(140, 160):
-    print('SCan mode DistanceR: %.1f cm DistanceL: %.1f cm' % (DR,DL))
-    send_ned_velocity(0,0.2,0,300)
-    if DL > 200:
-        print("end of right")
-        time.sleep(5)
-        send_ned_velocity(0,0,-0.2,10)
-        send_ned_velocity(0,-0.5,0,300)
-        break
-        
-    elif DR > 200:
-        print("end of Left")
-        time.sleep(5)
-        send_ned_velocity(0,0,-0.2,10)
-        send_ned_velocity(0,0.5,0,300)
-        break
-    else:
-        print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
-        
-#aviod
-while (DR or DL) < 140:
-    print('TOO close object DistanceR: %.1f cm DistanceL: %.1f cm' % (DR,DL))
-    send_ned_velocity(-0.5,0,0,300)
 
 #######################################
 # Main code starts here
 #######################################
 
 try:
-    progress("INFO: pyrealsense2 version: %s" % str(rs.__version__))
+    progress("INFO: pyrealsense2 version: %s" % str(rs.__version__))  #! ตรวจversion กล้อง
 except Exception:
     # fail silently
     pass
 
-progress("INFO: Starting Vehicle communications")
+progress("INFO: Starting Vehicle communications") #! เชื่อมต่อ mavlink
 conn = mavutil.mavlink_connection(
     connection_string,
     autoreconnect = True,
@@ -697,7 +595,7 @@ sched.start()
 
 # gracefully terminate the script if an interrupt signal (e.g. ctrl-c)
 # is received.  This is considered to be abnormal termination.
-main_loop_should_quit = False
+main_loop_should_quit = False #! กรณีมีปัญหาจะหยุดการทำงาน
 def sigint_handler(sig, frame):
     global main_loop_should_quit
     main_loop_should_quit = True
@@ -719,7 +617,7 @@ if compass_enabled == 1:
 send_msg_to_gcs('Sending vision messages to FCU')
 
 try:
-    while not main_loop_should_quit:
+    while not main_loop_should_quit: #! เริ่มดึงข้อมูลกล้อง
         # Wait for the next set of frames from the camera
         frames = pipe.wait_for_frames()
 
@@ -771,7 +669,7 @@ try:
                         elif speed_delta > jump_speed_threshold:
                             progress("Speed jumped by: %s" % speed_delta)
                         increment_reset_counter()
-                    
+                    #! jump เช็ค ถ้า position เปลื่ยน 10 cm หรือ speed 20 m/s
                 prev_data = data
 
                 # Take offsets from body's center of gravity (or IMU) to camera's origin into account
@@ -794,6 +692,47 @@ try:
                     progress("DEBUG: NED RPY[deg]: {}".format( np.array( tf.euler_from_matrix( H_aeroRef_aeroBody, 'sxyz')) * 180 / m.pi))
                     progress("DEBUG: Raw pos xyz : {}".format( np.array( [data.translation.x, data.translation.y, data.translation.z])))
                     progress("DEBUG: NED pos xyz : {}".format( np.array( tf.translation_from_matrix( H_aeroRef_aeroBody))))
+                    
+    while True:
+        arm_and_takeoff(2)
+        #moveforward
+        for DR, DL in range(150, 1000):
+            if ((DR-DL) < 20) or ((DL-DR) < 20):
+                print("Move forward DistanceR: %.1f cm DistanceL: %.1f cm" % (DR, DL))
+                send_ned_velocity(0.5,0,0,5)
+                time.sleep(5)
+            elif (DR or DL) == 150:
+                print("Range for scan")
+                break
+            else:
+                print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
+        time.sleep(5)
+    #scan 
+        for DR, DL in range(140, 160):
+            print('SCan mode DistanceR: %.1f cm DistanceL: %.1f cm' % (DR,DL))
+            send_ned_velocity(0,0.2,0,300)
+            if DL > 200:
+                print("end of right")
+                time.sleep(5)
+                send_ned_velocity(0,0,-0.2,10)
+                send_ned_velocity(0,-0.5,0,300)
+                break
+        
+            elif DR > 200:
+                print("end of Left")
+                time.sleep(5)
+                send_ned_velocity(0,0,-0.2,10)
+                send_ned_velocity(0,0.5,0,300)
+                break
+            else:
+                print("orientation fail DistanceR: %.1f cm DistanceL: %.1f cm " % (DR, DL))
+        
+#aviod
+    while (DR or DL) < 140:
+        print('TOO close object DistanceR: %.1f cm DistanceL: %.1f cm' % (DR,DL))
+        send_ned_velocity(-0.5,0,0,300)
+
+        
 
 except Exception as e:
     progress(e)
